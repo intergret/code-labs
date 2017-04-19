@@ -1,0 +1,10 @@
+.arcconfig
+.classpath
+.settings/
+.project
+target/
+*.log
+*.tar.gz
+release/
+.idea/
+*.iml
