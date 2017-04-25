@@ -13,9 +13,6 @@
         <module>labs-finagle</module>
         <module>labs-redis</module>
         <module>labs-ehcache</module>
+        <module>labs-curator</module>
     </modules>
-
-    <properties>
-        <java.version>1.7</java.version>
-    </properties>
 </project>
