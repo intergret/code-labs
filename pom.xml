@@ -12,6 +12,7 @@
     <modules>
         <module>labs-finagle</module>
         <module>labs-redis</module>
+        <module>labs-ehcache</module>
     </modules>
 
     <properties>
