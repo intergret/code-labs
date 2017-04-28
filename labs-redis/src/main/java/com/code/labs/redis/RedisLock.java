@@ -1,5 +1,6 @@
 package com.code.labs.redis;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
@@ -8,12 +9,25 @@ import redis.clients.jedis.Jedis;
 
 public class RedisLock {
 
-  private static final int EXPIRY_TIME_SECONDS = 10;
+  private static final String EXPIRY_TIME_SECONDS = "10";
   private static final int SPIN_THRESHOLD_MILLIS = 300;
 
   private RedisTemplate redisTemplate;
-
   private ThreadLocal<HashMap<String,String>> holdLocks;
+
+  public static final String LUA_DELETE =
+      "if redis.call(\"GET\", KEYS[1]) == ARGV[1] then\n" +
+          "return redis.call(\"DEL\", KEYS[1])\n" +
+      "else\n" +
+          "return 0\n" +
+      "end";
+
+  public static final String LUA_NXEX =
+      "if redis.call(\"SETNX\", KEYS[1], ARGV[1]) == 1 then\n" +
+          "return redis.call(\"EXPIRE\", KEYS[1], ARGV[2])\n" +
+      "else\n" +
+          "return 0\n" +
+      "end";
 
   public RedisLock(RedisTemplate redisTemplate) {
     this.redisTemplate = redisTemplate;
@@ -31,18 +45,13 @@ public class RedisLock {
 
   public boolean acquire(final String lockName, int timeout) {
     final HashMap<String,String> localLocks = getLocalLocks();
-    final String uuid = localLocks.containsKey(lockName) ?
-        localLocks.get(lockName) : UUID.randomUUID().toString();
+    final String uuid = localLocks.containsKey(lockName) ? localLocks.get(lockName) : UUID.randomUUID().toString();
     while (timeout > 0) {
       long start = System.currentTimeMillis();
       Boolean isNewLock = redisTemplate.query(new RedisAction<Boolean>() {
         public Boolean query(Jedis jedis) {
-          boolean success = jedis.setnx(lockName, uuid) == 1;
-          if (success) {
-            jedis.expire(lockName, EXPIRY_TIME_SECONDS);
-            localLocks.put(lockName, uuid);
-          }
-          return success;
+          return (long) jedis.eval(RedisLock.LUA_NXEX, Arrays.asList(lockName),
+              Arrays.asList(uuid, EXPIRY_TIME_SECONDS)) > 0;
         }
       });
       if (isNewLock) return true;
@@ -71,15 +80,12 @@ public class RedisLock {
   }
 
   public void release(final String lockName) {
-    HashMap<String, String> localLocks = getLocalLocks();
+    HashMap<String,String> localLocks = getLocalLocks();
     if (localLocks.containsKey(lockName)) {
       final String holdUuid = localLocks.get(lockName);
       redisTemplate.execute(new RedisAction<String>() {
         public void execute(Jedis jedis) {
-          String currentUuid = jedis.get(lockName);
-          if (holdUuid.equals(currentUuid)) {
-            jedis.del(lockName);
-          }
+          jedis.eval(LUA_DELETE, Arrays.asList(lockName), Arrays.asList(holdUuid));
         }
       });
       localLocks.remove(lockName);
