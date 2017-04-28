@@ -17,11 +17,11 @@
 	public <T> T query(RedisAction<T> action) {
 	  Jedis jedis = jedisPool.getResource();
 	  try {
-      return action.query(jedis);
+	    return action.query(jedis);
 	  } finally {
-      if (jedis != null) {
-        jedisPool.returnResource(jedis);
-      }
+	    if (jedis != null) {
+	      jedisPool.returnResource(jedis);
+	    }
 	  }
 	}
 	public <T> void execute(RedisAction<T> redisTemplateAction) {
