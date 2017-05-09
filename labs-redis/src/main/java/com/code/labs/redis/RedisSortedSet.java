@@ -28,7 +28,7 @@ public class RedisSortedSet {
     final List<String> elements = new ArrayList<>();
     redisTemplate.execute(new RedisAction<String>() {
       public void execute(Jedis jedis) {
-        Set<String> elementSet = jedis.zrange(key, 0, size);
+        Set<String> elementSet = jedis.zrange(key, 0, size - 1);
         if (elementSet != null && elementSet.size() > 0) {
           Pipeline p = jedis.pipelined();
           for (String element : elementSet) {
