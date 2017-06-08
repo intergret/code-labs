@@ -31,6 +31,7 @@ public class AddServiceImpl implements AddService.ServiceIface {
         }
       }
     };
+    checkupThread.setDaemon(true);
     checkupThread.start();
   }
 
