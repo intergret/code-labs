@@ -6,16 +6,23 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
+import org.apache.curator.framework.recipes.cache.TreeCache;
+import org.apache.curator.framework.recipes.cache.TreeCacheEvent;
+import org.apache.curator.framework.recipes.cache.TreeCacheListener;
 import org.apache.curator.utils.CloseableUtils;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.code.labs.curator.common.SystemUtil;
 import com.code.labs.curator.common.ZKAccessor;
 import com.code.labs.curator.common.ZkPathUtil;
+import com.google.common.base.Throwables;
 
 public class Master extends Thread {
 
+  private static final Logger LOG = LoggerFactory.getLogger(Master.class);
   private volatile boolean runAsLeader = false;
   private volatile boolean runAsNormal = false;
 
@@ -25,10 +32,8 @@ public class Master extends Thread {
   private String ipAddress;
   private int port;
 
-  private PathChildrenCache leaderWatcher;
-  private PathChildrenCacheListener leaderListener;
+  private TreeCache prevMasterWatcher;
   private PathChildrenCache workerWatcher;
-  private PathChildrenCacheListener workerListener;
 
   public Master(String zkAddress) {
     this.zkAccessor = new ZKAccessor(zkAddress, ZkPathUtil.NAMESPACE);
@@ -36,42 +41,8 @@ public class Master extends Thread {
     this.port = SystemUtil.getAvailablePort();
 
     String payload = ZkPathUtil.createPayload(this.ipAddress, this.port);
-    String zkPathPre = ZkPathUtil.allMasterPath() + "/master-";
-    String fullPath = zkAccessor.create(CreateMode.EPHEMERAL_SEQUENTIAL, zkPathPre, payload);
+    String fullPath = zkAccessor.create(CreateMode.EPHEMERAL_SEQUENTIAL, ZkPathUtil.allMasterPrefixPath(), payload);
     this.masterId = ZKPaths.getNodeFromPath(fullPath);
-
-    this.leaderListener = new PathChildrenCacheListener() {
-      @Override
-      public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
-        switch (event.getType()) {
-          case CHILD_ADDED:
-            String addedWorkerId = ZKPaths.getNodeFromPath(event.getData().getPath());
-            System.out.println("leader master " + masterId + " find new worker join " + addedWorkerId);
-            break;
-          case CHILD_REMOVED:
-            String removedWorkerId = ZKPaths.getNodeFromPath(event.getData().getPath());
-            System.out.println("leader master " + masterId + " find old worker left " + removedWorkerId);
-            break;
-        }
-      }
-    };
-
-    this.workerListener = new PathChildrenCacheListener() {
-      @Override
-      public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
-        switch (event.getType()) {
-          case CHILD_ADDED:
-            String addedMasterId = ZKPaths.getNodeFromPath(event.getData().getPath());
-            System.out.println("normal master " + masterId + " find leader master " + addedMasterId);
-            break;
-          case CHILD_REMOVED:
-            String removedMasterId = ZKPaths.getNodeFromPath(event.getData().getPath());
-            System.out.println("normal master " + masterId + " find leader master left " + removedMasterId);
-            runAsNormal = false;
-            break;
-        }
-      }
-    };
   }
 
   @Override
@@ -85,7 +56,8 @@ public class Master extends Thread {
     if (masterId.endsWith(oldestMaster)) {
       runAsLeader();
     } else {
-      runAsNormal();
+      String prevMasterId = allMaster.get(allMaster.indexOf(masterId) - 1);
+      runAsNormal(prevMasterId);
     }
   }
 
@@ -93,62 +65,90 @@ public class Master extends Thread {
     runAsLeader = true;
 
     String payload = ZkPathUtil.createPayload(ipAddress, port);
-    String leaderPath = ZkPathUtil.leaderMasterPath() + "/" + masterId;
-    zkAccessor.create(CreateMode.EPHEMERAL, leaderPath, payload);
+    zkAccessor.create(CreateMode.EPHEMERAL, ZkPathUtil.leaderMasterPath(masterId), payload);
 
     // watch worker
     try {
       workerWatcher = new PathChildrenCache(zkAccessor.getClient(), ZkPathUtil.workerPath(), false);
       workerWatcher.start(PathChildrenCache.StartMode.NORMAL);
-      workerWatcher.getListenable().addListener(leaderListener);
+      workerWatcher.getListenable().addListener(new PathChildrenCacheListener() {
+        @Override
+        public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
+          LOG.info("Leader master watch event {} on worker!", event);
+          switch (event.getType()) {
+            case CHILD_ADDED:
+              String addedWorkerId = ZKPaths.getNodeFromPath(event.getData().getPath());
+              LOG.info("Leader master {} find new worker join {}", masterId, addedWorkerId);
+              break;
+            case CHILD_REMOVED:
+              String removedWorkerId = ZKPaths.getNodeFromPath(event.getData().getPath());
+              LOG.info("Leader master {} find old worker left {}", masterId, removedWorkerId);
+              break;
+          }
+        }
+      });
     } catch (Exception e) {
-      System.out.println("watch worker exception " + e);
+      LOG.error("Watch worker exception {}", Throwables.getStackTraceAsString(e));
     }
 
-    System.out.println("leader master " + masterId + " start.");
+    LOG.info("Leader master {} start.", masterId);
     while (runAsLeader) {
       try {
         Thread.sleep(500);
       } catch (InterruptedException e) {
-        System.out.println(e);
+        LOG.error("Leader master exception {}", Throwables.getStackTraceAsString(e));
       }
     }
 
     quitLeader();
-    System.out.println("leader master " + masterId + " quit.");
+    LOG.info("Leader master {} quit.", masterId);
     competeLeader();
   }
 
-  public void runAsNormal() {
+  public void runAsNormal(String prevMasterId) {
     runAsNormal = true;
 
     // watch master
     try {
-      leaderWatcher = new PathChildrenCache(zkAccessor.getClient(), ZkPathUtil.leaderMasterPath(), false);
-      leaderWatcher.start(PathChildrenCache.StartMode.NORMAL);
-      leaderWatcher.getListenable().addListener(workerListener);
+      final String prevMasterPath = ZkPathUtil.masterPath(prevMasterId);
+      prevMasterWatcher = new TreeCache(zkAccessor.getClient(), prevMasterPath);
+      prevMasterWatcher.start();
+      prevMasterWatcher.getListenable().addListener(new TreeCacheListener() {
+        @Override
+        public void childEvent(CuratorFramework client, TreeCacheEvent event) throws Exception {
+          LOG.info("Normal master watch event {} on prev master {}!", event, prevMasterPath);
+          switch (event.getType()) {
+            case NODE_REMOVED:
+              if (prevMasterPath.equals(event.getData().getPath())) {
+                LOG.info("Normal master {} find prev master {} left!", masterId, prevMasterPath);
+                runAsNormal = false;
+              }
+              break;
+          }
+        }
+      });
+      LOG.info("Normal master {} watch on prev master {}", masterId, prevMasterId);
     } catch (Exception e) {
-      System.out.println("watch leader master exception " + e);
+      LOG.error("Watch prev master exception {}", Throwables.getStackTraceAsString(e));
     }
 
-    System.out.println("normal master " + masterId + " start.");
+    LOG.info("Normal master {} start.", masterId);
     while (runAsNormal) {
       try {
         Thread.sleep(500);
       } catch (InterruptedException e) {
-        System.out.println(e);
+        LOG.error("Normal master exception {}", Throwables.getStackTraceAsString(e));
       }
     }
 
     quitNormal();
-    System.out.println("normal master " + masterId + " quit.");
+    LOG.info("Normal master {} quit.", masterId);
     competeLeader();
   }
 
   private void quitLeader() {
-    if (leaderWatcher != null) {
-      leaderWatcher.getListenable().clear();
-      CloseableUtils.closeQuietly(leaderWatcher);
+    if (prevMasterWatcher != null) {
+      CloseableUtils.closeQuietly(prevMasterWatcher);
     }
   }
 

@@ -1,14 +1,18 @@
 package com.code.labs.curator;
 
+import com.google.common.base.Throwables;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 
 import com.code.labs.curator.common.SystemUtil;
 import com.code.labs.curator.common.ZKAccessor;
 import com.code.labs.curator.common.ZkPathUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Worker extends Thread {
 
+  private static final Logger LOG = LoggerFactory.getLogger(Worker.class);
   private volatile boolean runnable = true;
 
   private ZKAccessor zkAccessor;
@@ -30,15 +34,15 @@ public class Worker extends Thread {
 
   @Override
   public void run() {
-    System.out.println("worker " + workerId + " start.");
+    LOG.info("Waster {} start.", workerId);
     while (runnable) {
       try {
         Thread.sleep(500);
       } catch (InterruptedException e) {
-        System.out.println(e);
+        LOG.info("Waster exception {}", Throwables.getStackTraceAsString(e));
       }
     }
-    System.out.println("worker " + workerId + " quit.");
+    LOG.info("Waster {} quit.", workerId);
   }
 
   public void quit() {
