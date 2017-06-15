@@ -1,7 +1,10 @@
-package com.code.labs.curator;
+package com.code.labs.curator.leaderelection;
 
 import java.util.List;
 
+import com.code.labs.curator.common.SystemUtil;
+import com.code.labs.curator.common.ZKAccessor;
+import com.google.common.base.Throwables;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
@@ -14,11 +17,6 @@ import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.code.labs.curator.common.SystemUtil;
-import com.code.labs.curator.common.ZKAccessor;
-import com.code.labs.curator.common.ZkPathUtil;
-import com.google.common.base.Throwables;
 
 public class Master extends Thread {
 
@@ -36,12 +34,12 @@ public class Master extends Thread {
   private PathChildrenCache workerWatcher;
 
   public Master(String zkAddress) {
-    this.zkAccessor = new ZKAccessor(zkAddress, ZkPathUtil.NAMESPACE);
+    this.zkAccessor = new ZKAccessor(zkAddress, ZkPath.NAMESPACE);
     this.ipAddress = SystemUtil.getLocalIPAddress();
     this.port = SystemUtil.getAvailablePort();
 
-    String payload = ZkPathUtil.createPayload(this.ipAddress, this.port);
-    String fullPath = zkAccessor.create(CreateMode.EPHEMERAL_SEQUENTIAL, ZkPathUtil.allMasterPrefixPath(), payload);
+    String payload = ZkPath.createPayload(this.ipAddress, this.port);
+    String fullPath = zkAccessor.create(CreateMode.EPHEMERAL_SEQUENTIAL, ZkPath.allMasterPrefixPath(), payload);
     this.masterId = ZKPaths.getNodeFromPath(fullPath);
   }
 
@@ -51,7 +49,7 @@ public class Master extends Thread {
   }
 
   private void competeLeader() {
-    List<String> allMaster = zkAccessor.getChildren(ZkPathUtil.allMasterPath(), false);
+    List<String> allMaster = zkAccessor.getChildren(ZkPath.allMasterPath(), false);
     String oldestMaster = allMaster.get(0);
     if (masterId.endsWith(oldestMaster)) {
       runAsLeader();
@@ -64,12 +62,12 @@ public class Master extends Thread {
   public void runAsLeader() {
     runAsLeader = true;
 
-    String payload = ZkPathUtil.createPayload(ipAddress, port);
-    zkAccessor.create(CreateMode.EPHEMERAL, ZkPathUtil.leaderMasterPath(masterId), payload);
+    String payload = ZkPath.createPayload(ipAddress, port);
+    zkAccessor.create(CreateMode.EPHEMERAL, ZkPath.leaderMasterPath(masterId), payload);
 
     // watch worker
     try {
-      workerWatcher = new PathChildrenCache(zkAccessor.getClient(), ZkPathUtil.workerPath(), false);
+      workerWatcher = new PathChildrenCache(zkAccessor.getClient(), ZkPath.workerRootPath(), false);
       workerWatcher.start(PathChildrenCache.StartMode.NORMAL);
       workerWatcher.getListenable().addListener(new PathChildrenCacheListener() {
         @Override
@@ -110,7 +108,7 @@ public class Master extends Thread {
 
     // watch master
     try {
-      final String prevMasterPath = ZkPathUtil.masterPath(prevMasterId);
+      final String prevMasterPath = ZkPath.masterPath(prevMasterId);
       prevMasterWatcher = new TreeCache(zkAccessor.getClient(), prevMasterPath);
       prevMasterWatcher.start();
       prevMasterWatcher.getListenable().addListener(new TreeCacheListener() {

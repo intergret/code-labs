@@ -1,12 +1,10 @@
-package com.code.labs.curator;
-
-import com.google.common.base.Throwables;
-import org.apache.curator.utils.ZKPaths;
-import org.apache.zookeeper.CreateMode;
+package com.code.labs.curator.leaderelection;
 
 import com.code.labs.curator.common.SystemUtil;
 import com.code.labs.curator.common.ZKAccessor;
-import com.code.labs.curator.common.ZkPathUtil;
+import com.google.common.base.Throwables;
+import org.apache.curator.utils.ZKPaths;
+import org.apache.zookeeper.CreateMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,13 +20,12 @@ public class Worker extends Thread {
   private int port;
 
   public Worker(String zkAddress) {
-    this.zkAccessor = new ZKAccessor(zkAddress, ZkPathUtil.NAMESPACE);
+    this.zkAccessor = new ZKAccessor(zkAddress, ZkPath.NAMESPACE);
     this.ipAddress = SystemUtil.getLocalIPAddress();
     this.port = SystemUtil.getAvailablePort();
 
-    String payload = ZkPathUtil.createPayload(this.ipAddress, this.port);
-    String zkPathPre = ZkPathUtil.workerPath() + "/worker-";
-    String fullPath = zkAccessor.create(CreateMode.EPHEMERAL_SEQUENTIAL, zkPathPre, payload);
+    String payload = ZkPath.createPayload(this.ipAddress, this.port);
+    String fullPath = zkAccessor.create(CreateMode.EPHEMERAL_SEQUENTIAL, ZkPath.workerPrefixPath(), payload);
     this.workerId = ZKPaths.getNodeFromPath(fullPath);
   }
 
