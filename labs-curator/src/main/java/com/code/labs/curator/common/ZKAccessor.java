@@ -11,6 +11,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.utils.CloseableUtils;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +44,8 @@ public class ZKAccessor {
       return client.create().creatingParentsIfNeeded()
           .withMode(mode)
           .forPath(zkPath, payload.getBytes());
+    } catch (KeeperException.NodeExistsException e) {
+      LOG.error("Node exists exception on create {}", zkPath);
     } catch (Exception e) {
       logError(e);
     }
@@ -59,7 +62,7 @@ public class ZKAccessor {
 
   public String getData(final String zkPath) {
     try {
-      if (client.checkExists().forPath(zkPath) != null) {
+      if (exist(zkPath)) {
         byte[] data = client.getData().forPath(zkPath);
         if (data != null) return new String(data);
       }
@@ -72,14 +75,25 @@ public class ZKAccessor {
   public void delete(final String zkPath) {
     try {
       client.delete().guaranteed().deletingChildrenIfNeeded().forPath(zkPath);
+    } catch (KeeperException.NoNodeException e) {
+      LOG.error("No node exception on delete {}", zkPath);
     } catch (Exception e) {
       logError(e);
     }
   }
 
+  public boolean exist(final String zkPath) {
+    try {
+      return client.checkExists().forPath(zkPath) != null;
+    } catch (Exception e) {
+      logError(e);
+    }
+    return false;
+  }
+
   public List<String> getChildren(final String zkPath, boolean fullPath) {
     try {
-      if (client.checkExists().forPath(zkPath) != null) {
+      if (exist(zkPath)) {
         List<String> childrenPath = new ArrayList<>();
         List<String> paths = client.getChildren().forPath(zkPath);
         if (paths != null) {
