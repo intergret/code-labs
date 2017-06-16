@@ -1,5 +1,6 @@
 package com.code.labs.redis;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,6 +27,7 @@ public class TestRedis {
   private final static String PCHANNEL = "*testchannel*";
   private final static String LOCK = "testlock";
 
+  private JedisPool jedisPool;
   private RedisCache redisCache;
   private RedisCounter redisCounter;
   private RedisPubSub redisPubSub;
@@ -42,17 +45,15 @@ public class TestRedis {
     config.setMaxWaitMillis(1000);
     config.setTestOnBorrow(true);
 
-    JedisPool jedisPool = new JedisPool(config, "localhost");
-    RedisTemplate redisTemplate = new RedisTemplate(jedisPool);
-
-    redisCache = new RedisCache(redisTemplate);
-    redisCounter = new RedisCounter(redisTemplate);
-    redisPubSub = new RedisPubSub(redisTemplate);
-    redisLock = new RedisLock(redisTemplate);
-    redisQueue = new RedisQueue(redisTemplate);
-    redisSet = new RedisSet(redisTemplate);
-    redisSortedSet = new RedisSortedSet(redisTemplate);
-    redisHashMap = new RedisHashMap(redisTemplate);
+    jedisPool = new JedisPool(config, "localhost");
+    redisCache = new RedisCache(jedisPool);
+    redisCounter = new RedisCounter(jedisPool);
+    redisPubSub = new RedisPubSub(jedisPool);
+    redisLock = new RedisLock(jedisPool);
+    redisQueue = new RedisQueue(jedisPool);
+    redisSet = new RedisSet(jedisPool);
+    redisSortedSet = new RedisSortedSet(jedisPool);
+    redisHashMap = new RedisHashMap(jedisPool);
   }
 
   @Test
@@ -226,5 +227,12 @@ public class TestRedis {
     redisHashMap.batchDelete(KEY, Arrays.asList("b"));
     Assert.assertEquals(true, 0 == redisHashMap.size(KEY));
     redisCache.delete(KEY);
+  }
+
+  @After
+  public void tearDown() throws IOException {
+    if (jedisPool != null) {
+      jedisPool.close();
+    }
   }
 }
