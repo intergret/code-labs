@@ -1,4 +1,4 @@
-# finagle-example
+# labs-finagle
 基于Thrift和Finagle RPC服务示例。Server端将服务注册到ZK，Client端维护Server节点列表，请求随机转发给其中的某个Server节点。
 
 ### 示例：
