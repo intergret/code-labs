@@ -20,15 +20,15 @@ public class RedisSortedSet implements Closeable {
 
   public void add(final String key, final double weight, final String element) {
     try (Jedis jedis = jedisPool.getResource()) {
-      // store in desc order by weight
-      jedis.zadd(key, -weight, element);
+      // store in asc order by default
+      jedis.zadd(key, weight, element);
     }
   }
 
   public List<String> pop(final String key, final long size) {
     final List<String> elements = new ArrayList<>();
     try (Jedis jedis = jedisPool.getResource()) {
-      Set<String> elementSet = jedis.zrange(key, 0, size - 1);
+      Set<String> elementSet = jedis.zrevrange(key, 0, size - 1);
       if (elementSet != null && elementSet.size() > 0) {
         Pipeline p = jedis.pipelined();
         for (String element : elementSet) {

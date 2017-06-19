@@ -3,6 +3,6 @@
 
 2. **[Finagle](https://github.com/intergret/code-labs/tree/master/labs-finagle)**：基于Finagle搭建RPC服务，包括使用Zookeeper注册服务的Client-Server模式和点对点的Peer2Peer模式;
 
-3. **[Redis](https://github.com/intergret/code-labs/tree/master/labs-redis)**：使用Redis作Counter、Cache、Queue、Set时的一些封装，也基于Redis实现了Lock、PubSub等功;
+3. **[Redis](https://github.com/intergret/code-labs/tree/master/labs-redis)**：使用Redis作Counter、Cache、Queue、Set时的一些封装，也基于Redis实现了Lock、PubSub等功能;
 
 4. **Ehcache**：类似Guava的Local Cache，进行简单的封装;
