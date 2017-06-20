@@ -5,8 +5,8 @@ import java.net.InetSocketAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Throwables;
 import com.code.labs.finagle.AddServiceImpl;
+import com.google.common.base.Throwables;
 import com.twitter.finagle.Announcement;
 import com.twitter.finagle.ListeningServer;
 import com.twitter.finagle.Thrift;
@@ -30,7 +30,7 @@ public class ServerMain {
       listeningServer = Thrift.serveIface(new InetSocketAddress(PORT), addService);
       ServerAnnouncer zkAnnouncer = new ServerAnnouncer();
       clusterStatus = zkAnnouncer.announce(ZK, ZK_PATH, PORT);
-      System.out.println("Server start on zk:" + ZK + ", path:" + ZK_PATH + ", port:" + PORT);
+      LOG.info("Server start on zk: {}, path:{}, port:{}", ZK, ZK_PATH, PORT);
 
       Runtime.getRuntime().addShutdownHook(new Thread() {
         @Override
@@ -40,7 +40,6 @@ public class ServerMain {
       });
       Await.ready(listeningServer);
     } catch (Exception e) {
-      System.out.println(e);
       LOG.error("Start listeningServer failed : {}", Throwables.getStackTraceAsString(e));
       close();
     }
@@ -69,7 +68,6 @@ public class ServerMain {
       server = new ServerMain();
       server.startServer();
     } catch (Exception e) {
-      e.printStackTrace();
       LOG.error("Server start failed : {}", Throwables.getStackTraceAsString(e));
       if (server != null) {
         server.close();

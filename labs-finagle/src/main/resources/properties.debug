@@ -1,0 +1,2 @@
+log4j.level=info
+log4j.appender=stdout
