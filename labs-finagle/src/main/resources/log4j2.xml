@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" shutdownHook="disable">
+    <Appenders>
+        <Console name="stdout" target="SYSTEM_OUT">
+            <PatternLayout pattern="[%-5p] %d %c - %m%n"/>
+        </Console>
+
+        <RollingFile name="logfile" fileName="/Users/intergret/LDevelop/code-labs/labs-finagle/finagle.log"
+                     filePattern="/Users/intergret/LDevelop/code-labs/labs-finagle/finagle.log-%d{yyyy-MM-dd}.log">
+            <PatternLayout pattern="%-d{yyyy-MM-dd HH:mm:ss} [%thread] %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy modulate="true" interval="1"/>
+                <SizeBasedTriggeringPolicy size="100 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="20"/>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <Logger name="com.code.labs" level="${log4j2.level}" additivity="false">
+            <AppenderRef ref="${log4j2.appender}"/>
+        </Logger>
+
+        <Root level="${log4j2.level}">
+            <AppenderRef ref="${log4j2.appender}"/>
+        </Root>
+    </Loggers>
+</Configuration>

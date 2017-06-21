@@ -1,2 +1,2 @@
-log4j.level=info
-log4j.appender=stdout
+log4j2.level=debug
+log4j2.appender=stdout
