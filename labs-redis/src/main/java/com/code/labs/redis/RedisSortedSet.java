@@ -2,17 +2,22 @@ package com.code.labs.redis;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.Pipeline;
 
 public class RedisSortedSet implements Closeable {
 
   private JedisPool jedisPool;
+
+  private static final String LUA_POP =
+      "local elements = redis.call('zrevrange', KEYS[1], 0, tonumber(ARGV[1]));\n" +
+      "if next(elements) ~= nil then\n" +
+          "redis.call('zrem', KEYS[1], unpack(elements));\n" +
+      "end\n" +
+      "return elements;";
 
   public RedisSortedSet(JedisPool jedisPool) {
     this.jedisPool = jedisPool;
@@ -26,21 +31,9 @@ public class RedisSortedSet implements Closeable {
   }
 
   public List<String> pop(final String key, final long size) {
-    final List<String> elements = new ArrayList<>();
     try (Jedis jedis = jedisPool.getResource()) {
-      Set<String> elementSet = jedis.zrevrange(key, 0, size - 1);
-      if (elementSet != null && elementSet.size() > 0) {
-        Pipeline p = jedis.pipelined();
-        for (String element : elementSet) {
-          if (element != null) {
-            elements.add(element);
-            p.zrem(key, element);
-          }
-        }
-        p.syncAndReturnAll();
-      }
+      return (List<String>) jedis.eval(LUA_POP, Arrays.asList(key), Arrays.asList(String.valueOf(size - 1)));
     }
-    return elements;
   }
 
   public long size(final String key) {
