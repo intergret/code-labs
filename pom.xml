@@ -14,5 +14,6 @@
         <module>labs-redis</module>
         <module>labs-ehcache</module>
         <module>labs-curator</module>
+        <module>labs-kafka</module>
     </modules>
 </project>
