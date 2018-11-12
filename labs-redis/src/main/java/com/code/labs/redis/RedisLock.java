@@ -1,7 +1,6 @@
 package com.code.labs.redis;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.UUID;
@@ -14,7 +13,7 @@ public class RedisLock implements Closeable {
 
   private static final String EXPIRY_TIME_SECONDS = "10";
   private static final int SPIN_THRESHOLD_MILLIS = 300;
-  private ThreadLocal<HashMap<String,String>> holdLocks;
+  private ThreadLocal<HashMap<String,String>> holdLocks = new ThreadLocal<>();
 
   public static final String LUA_DELETE =
       "if redis.call(\"GET\", KEYS[1]) == ARGV[1] then\n" +
@@ -59,7 +58,7 @@ public class RedisLock implements Closeable {
 
       if (localLocks.containsKey(lockName)) {
         String localUuid = localLocks.get(lockName);
-        String currentUuid = null;
+        String currentUuid;
         try (Jedis jedis = jedisPool.getResource()) {
           currentUuid = jedis.get(lockName);
         }
@@ -91,7 +90,7 @@ public class RedisLock implements Closeable {
   }
 
   @Override
-  public void close() throws IOException {
+  public void close() {
     if (jedisPool != null) jedisPool.close();
   }
 }
